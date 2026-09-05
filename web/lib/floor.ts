@@ -1,0 +1,432 @@
+// Server-side data for the public Floor.
+//
+// KEYLESS BY DESIGN. `SomniaMarkets` requires a privateKey at construction, so
+// the indexer path cannot run on a public web server without putting a key there.
+// It doesn't. Everything below reads `MarketCreated` chain logs and contract
+// views, which need no key at all and, per the template's SKILL.md, "never
+// depend on the indexer."
+//
+// The tradeoff is honest and stated in the UI: chain logs carry no venueId and no
+// volume, so those columns are absent here rather than faked.
+import {
+  discoverFromChain,
+  findMarketCreated,
+  cadenceLabel,
+  type LiveWindow,
+} from "@bicameral/runner/src/markets.js";
+import { pub } from "@bicameral/runner/src/config.js";
+import { binaryPoolAbi } from "@bicameral/runner/src/abi.js";
+import { factoryAbi, traderAbi } from "@bicameral/runner/src/contracts.js";
+import { decodeEventLog, type Address } from "viem";
+
+export { cadenceLabel };
+export type { LiveWindow };
+
+export interface WindowView extends LiveWindow {
+  bestBid?: number;
+  bestAsk?: number;
+  bidDepth?: string;
+  askDepth?: string;
+  status?: number;
+  tradable: boolean;
+  emptyBook: boolean;
+}
+
+
+/**
+ * viem types `eventName` as possibly-undefined when the ABI is a plain `Abi`
+ * rather than a const-asserted literal (ours is loaded from Foundry artifacts at
+ * runtime, so it cannot be const). One narrow helper instead of casts everywhere.
+ */
+function decode(abi: any, l: any): { name: string; args: any } | null {
+  try {
+    const ev = decodeEventLog({ abi, data: l.data, topics: l.topics }) as any;
+    return ev?.eventName ? { name: String(ev.eventName), args: ev.args ?? {} } : null;
+  } catch {
+    return null;
+  }
+}
+
+const STATUS = ["Listed", "Trading", "Locked", "Settling", "Resolved", "Voided"];
+export const statusLabel = (s?: number) => (s === undefined ? "—" : (STATUS[s] ?? "?"));
+
+/** Every live window, with its book. Nothing about assets or cadences is fixed. */
+export async function getWindows(): Promise<{ windows: WindowView[]; head: bigint }> {
+  const [raw, head] = await Promise.all([discoverFromChain(), pub.getBlockNumber()]);
+
+  const windows = await Promise.all(
+    raw.map(async (w): Promise<WindowView> => {
+      try {
+        const [bids, asks, finalized] = await Promise.all([
+          pub.readContract({
+            address: w.pool,
+            abi: binaryPoolAbi,
+            functionName: "getBookLevels",
+            args: [true, 1n],
+          }) as Promise<any[]>,
+          pub.readContract({
+            address: w.pool,
+            abi: binaryPoolAbi,
+            functionName: "getBookLevels",
+            args: [false, 1n],
+          }) as Promise<any[]>,
+          pub.readContract({
+            address: w.pool,
+            abi: binaryPoolAbi,
+            functionName: "finalized",
+          }) as Promise<boolean>,
+        ]);
+
+        const emptyBook = bids.length === 0 && asks.length === 0;
+        return {
+          ...w,
+          bestBid: bids[0] ? Number(bids[0].price) / 1e6 : undefined,
+          bestAsk: asks[0] ? Number(asks[0].price) / 1e6 : undefined,
+          bidDepth: bids[0] ? String(Number(bids[0].quantity) / 1e6) : undefined,
+          askDepth: asks[0] ? String(Number(asks[0].quantity) / 1e6) : undefined,
+          status: finalized ? 4 : 1,
+          tradable: !finalized && w.secondsLeft > 120,
+          emptyBook,
+        };
+      } catch {
+        return { ...w, tradable: false, emptyBook: true };
+      }
+    }),
+  );
+
+  return { windows, head };
+}
+
+export interface BookLevel {
+  price: number;
+  quantity: number;
+}
+
+export interface WindowDetail extends WindowView {
+  bids: BookLevel[];
+  asks: BookLevel[];
+  marketContract?: Address;
+  finalized: boolean;
+  resolved?: boolean;
+  voided?: boolean;
+}
+
+/**
+ * Find one market by id, whether or not it is still live.
+ *
+ * `discoverFromChain()` filters to `expiry > now` — correct for a board of
+ * tradable windows, wrong for a permalink. Without a second path, a market's
+ * page (and the decision history on it) would 404 the moment it settles —
+ * exactly when there is the most to look at. `marketId` is an indexed topic on
+ * `MarketCreated`, so the fallback asks the node to filter server-side for
+ * that one value — cheap even over a wide historical range — and recovers the
+ * real asset string from the original log, rather than a hash.
+ */
+async function findMarket(marketId: string): Promise<LiveWindow | null> {
+  const raw = await discoverFromChain();
+  const live = raw.find((m) => m.marketId.toLowerCase() === marketId.toLowerCase());
+  if (live) return live;
+
+  return findMarketCreated(marketId as `0x${string}`);
+}
+
+/**
+ * One market, with a deep book rather than just the top level.
+ *
+ * `getWindows` reads one level per side because a table row only shows the
+ * best bid and ask; a detail page can show the ladder, so this asks for more.
+ */
+export async function getWindow(marketId: string): Promise<WindowDetail | null> {
+  const w = await findMarket(marketId);
+  if (!w) return null;
+
+  const levels = (rows: any[]): BookLevel[] =>
+    rows.map((l) => ({ price: Number(l.price) / 1e6, quantity: Number(l.quantity) / 1e6 }));
+
+  try {
+    const [bids, asks, finalized, params] = await Promise.all([
+      pub.readContract({
+        address: w.pool,
+        abi: binaryPoolAbi,
+        functionName: "getBookLevels",
+        args: [true, 8n],
+      }) as Promise<any[]>,
+      pub.readContract({
+        address: w.pool,
+        abi: binaryPoolAbi,
+        functionName: "getBookLevels",
+        args: [false, 8n],
+      }) as Promise<any[]>,
+      pub.readContract({
+        address: w.pool,
+        abi: binaryPoolAbi,
+        functionName: "finalized",
+      }) as Promise<boolean>,
+      pub
+        .readContract({
+          address: w.pool,
+          abi: binaryPoolAbi,
+          functionName: "getBinaryPoolParams",
+        })
+        .catch(() => null) as Promise<any>,
+    ]);
+
+    const b = levels(bids);
+    const a = levels(asks);
+
+    return {
+      ...w,
+      bids: b,
+      asks: a,
+      bestBid: b[0]?.price,
+      bestAsk: a[0]?.price,
+      bidDepth: b[0] ? String(b[0].quantity) : undefined,
+      askDepth: a[0] ? String(a[0].quantity) : undefined,
+      marketContract: params?.market,
+      finalized,
+      status: finalized ? 4 : 1,
+      tradable: !finalized && w.secondsLeft > 120,
+      emptyBook: b.length === 0 && a.length === 0,
+    };
+  } catch {
+    return {
+      ...w,
+      bids: [],
+      asks: [],
+      finalized: false,
+      tradable: false,
+      emptyBook: true,
+    };
+  }
+}
+
+// ------------------------------------------------------------------ agents
+
+export interface AgentView {
+  address: Address;
+  name: string;
+  owner: string;
+  strategy: string;
+  fuel?: number;
+  decisions?: number;
+  paused?: boolean;
+}
+
+const LOG_WINDOW = 1000n;
+
+/**
+ * The block our own history could possibly start at — nothing to find before
+ * the factory existed, so scans never walk past it. Kept as an env var rather
+ * than discovered on every request: a binary-search-for-deploy-block call would
+ * itself cost several round-trips on every page load for a number that never
+ * changes once set.
+ */
+function deployFloor(): bigint {
+  const v = process.env.FACTORY_DEPLOY_BLOCK;
+  return v ? BigInt(v) : 0n;
+}
+
+/**
+ * How many `getLogs` calls run at once.
+ *
+ * Somnia is high-throughput enough that block count and wall-clock time part
+ * ways fast: the factory's own deploy is under three hours old by the clock,
+ * but already ~145,000 blocks back. At the RPC's 1000-block cap that is ~150
+ * calls for a contract that new — a number that keeps climbing daily, on any
+ * chain this fast, no matter how tightly the block range is bounded. So this
+ * batches the calls concurrently rather than trying to shrink the count:
+ * correct for the venue's actual throughput instead of assuming Ethereum's.
+ */
+const SCAN_CONCURRENCY = 25;
+
+async function scan(addresses: Address[], windowsBack: number) {
+  if (!addresses.length) return [];
+  const head = await pub.getBlockNumber();
+  const floor = deployFloor();
+
+  // `floor` is a real anchor, not an estimate — it must always be reached in
+  // full, however many windows that takes. `windowsBack` is a cap for when the
+  // floor is unknown, not a ceiling on the floor itself.
+  //
+  // Getting this backwards (Math.min instead of Math.max) is exactly what
+  // broke: the factory's own AgentDeployed event silently fell out of every
+  // scan the moment the chain grew past windowsBack × 1000 blocks since
+  // deploy — a fixed cap turning into a slow-motion outage on a chain this
+  // fast, not a one-time bug. Reached in a live incident 2026-09-05: the
+  // agent roster read empty hours after it had read correctly, with the
+  // agent, the events, and the RPC all unchanged — only elapsed chain height.
+  const needed = floor > 0n ? Math.ceil(Number(head - floor) / 1000) + 1 : windowsBack;
+  const iterations = floor > 0n ? Math.max(needed, 1) : windowsBack;
+
+  const ranges: { fromBlock: bigint; toBlock: bigint }[] = [];
+  for (let i = 0; i < iterations; i++) {
+    const to = head - BigInt(i) * LOG_WINDOW;
+    if (to <= LOG_WINDOW || to < floor) break;
+    ranges.push({ fromBlock: to - (LOG_WINDOW - 1n), toBlock: to });
+  }
+
+  const out: any[] = [];
+  for (let i = 0; i < ranges.length; i += SCAN_CONCURRENCY) {
+    const batch = ranges.slice(i, i + SCAN_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map((r) => pub.getLogs({ address: addresses, ...r }).catch(() => [])),
+    );
+    for (const logs of results) out.push(...logs);
+  }
+  return out;
+}
+
+export function factoryAddress(): Address | null {
+  const v = process.env.FACTORY_ADDRESS;
+  return v ? (v as Address) : null;
+}
+
+export async function getAgents(): Promise<AgentView[]> {
+  const factory = factoryAddress();
+  if (!factory) return [];
+
+  const logs = await scan([factory], 200);
+  const agents: AgentView[] = [];
+
+  for (const l of logs) {
+    const ev = decode(factoryAbi, l);
+    if (!ev || ev.name !== "AgentDeployed") continue;
+    agents.push({
+      address: ev.args.agent,
+      name: ev.args.name,
+      owner: ev.args.owner,
+      strategy: ev.args.strategy,
+    });
+  }
+
+  return Promise.all(
+    agents.map(async (a) => {
+      try {
+        const [fuel, decisions, paused] = await Promise.all([
+          pub.readContract({
+            address: a.address,
+            abi: traderAbi,
+            functionName: "fuelRemaining",
+          }) as Promise<bigint>,
+          pub.readContract({
+            address: a.address,
+            abi: traderAbi,
+            functionName: "decisionCount",
+          }) as Promise<bigint>,
+          pub.readContract({
+            address: a.address,
+            abi: traderAbi,
+            functionName: "paused",
+          }) as Promise<boolean>,
+        ]);
+        return { ...a, fuel: Number(fuel), decisions: Number(decisions), paused };
+      } catch {
+        return a;
+      }
+    }),
+  );
+}
+
+// ----------------------------------------------------------------- decisions
+
+export interface FeedRow {
+  agent: Address;
+  agentName?: string;
+  marketId: string;
+  requestId: string;
+  block: number;
+  stage: "asked" | "verdict" | "gate" | "order" | "settled" | "expired" | "failed";
+  verdictLabel?: string;
+  agreeing?: number;
+  subcommittee?: number;
+  gateLabel?: string;
+  gatePassed?: boolean;
+  price?: number;
+  quantity?: number;
+  tx?: string;
+}
+
+const VERDICTS = ["ABSTAIN", "BUY_UP", "BUY_DOWN"];
+const GATE = [
+  "PASS",
+  "model abstained",
+  "market finalized",
+  "expiry headroom too short",
+  "no resting liquidity",
+  "price outside allowed band",
+  "size snapped to zero",
+  "size below venue minimum",
+  "max concurrent positions",
+  "max notional at risk",
+  "insufficient collateral",
+];
+
+export async function getFeed(limit = 60): Promise<FeedRow[]> {
+  const agents = await getAgents();
+  if (!agents.length) return [];
+
+  const names = new Map(agents.map((a) => [a.address.toLowerCase(), a.name]));
+  const logs = await scan(
+    agents.map((a) => a.address),
+    120,
+  );
+
+  const rows: FeedRow[] = [];
+  for (const l of logs) {
+    const ev = decode(traderAbi, l);
+    if (!ev) continue;
+    const args = ev.args;
+    const base = {
+      agent: l.address as Address,
+      agentName: names.get(String(l.address).toLowerCase()),
+      marketId: args.marketId ?? "",
+      requestId: String(args.requestId ?? ""),
+      block: Number(l.blockNumber),
+      tx: l.transactionHash ?? undefined,
+    };
+
+    switch (ev.name) {
+      case "WindowOpened":
+        rows.push({ ...base, stage: "asked" });
+        break;
+      case "VerdictReceived":
+        rows.push({
+          ...base,
+          stage: "verdict",
+          verdictLabel: VERDICTS[Number(args.verdict)],
+          agreeing: Number(args.agreeing),
+          subcommittee: Number(args.subcommittee),
+        });
+        break;
+      case "GateDecision":
+        rows.push({
+          ...base,
+          stage: "gate",
+          gateLabel: GATE[Number(args.reasonCode)] ?? "unknown",
+          gatePassed: Number(args.reasonCode) === 0,
+          price: Number(args.price) / 1e6,
+          quantity: Number(args.quantity) / 1e6,
+        });
+        break;
+      case "OrderPlaced":
+        rows.push({
+          ...base,
+          stage: "order",
+          price: Number(args.price) / 1e6,
+          quantity: Number(args.quantity) / 1e6,
+        });
+        break;
+      case "Redeemed":
+        rows.push({ ...base, stage: "settled" });
+        break;
+      case "RequestExpired":
+        rows.push({ ...base, stage: "expired" });
+        break;
+      case "RequestFailed":
+        rows.push({ ...base, stage: "failed" });
+        break;
+    }
+  }
+
+  return rows.sort((a, b) => b.block - a.block).slice(0, limit);
+}

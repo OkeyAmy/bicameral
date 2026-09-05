@@ -1,0 +1,22 @@
+{
+  "name": "bicameral",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An AI trading agent that lives entirely inside a smart contract, trading DreamDEX Event Contracts on Somnia.",
+  "license": "MIT",
+  "scripts": {
+    "discover": "pnpm -F @bicameral/runner discover",
+    "preflight": "pnpm -F @bicameral/runner preflight",
+    "keeper": "pnpm -F @bicameral/runner keeper",
+    "index": "pnpm -F @bicameral/runner index",
+    "verify": "pnpm -F @bicameral/runner verify",
+    "web": "pnpm -F @bicameral/web dev",
+    "build:contracts": "forge build --root contracts",
+    "test:contracts": "forge test --root contracts -vvv",
+    "seed": "pnpm -F @bicameral/runner seed"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

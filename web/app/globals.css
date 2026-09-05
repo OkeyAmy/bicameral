@@ -1,0 +1,1378 @@
+/* Bicameral — the Floor.
+ *
+ * Direction: a departure board / NOC wall display, not a Bloomberg terminal.
+ * Big legible rows, one thing happening per row, generous space, monospace
+ * reserved for numbers and hashes only. The viewer is not analysing a market;
+ * they are watching a machine think. It has to read from three metres away on
+ * a projector.
+ *
+ * One locked theme (near-black), by design: a wall display doesn't switch
+ * modes underneath the person reading it. One accent — signal amber — means
+ * "live," borrowed from split-flap departure boards, not from any other
+ * submission in this hackathon. Settlement green and gate-reject red are
+ * semantic trading states, not decoration, and are never used for anything
+ * else on the page.
+ */
+
+:root {
+  --bg: #0a0a0b;
+  --raised: #131315;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --ink: #f3f1ec;
+  --dim: #9c988d;
+  --dimmer: #615e55;
+
+  --signal: #f0a93b; /* the one accent: live */
+  --signal-dim: rgba(240, 169, 59, 0.14);
+  --good: #5fb37e; /* settlement / pass */
+  --bad: #d1685c; /* gate reject */
+
+  --mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  appearance: none;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(240, 169, 59, 0.07), transparent 32%),
+    radial-gradient(circle at 78% 64%, rgba(255, 255, 255, 0.045), transparent 28%),
+    linear-gradient(180deg, #060607 0%, #0a0a0b 50%, #060607 100%);
+}
+
+
+a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-strong);
+}
+a:hover {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px 110px;
+}
+
+/* ------------------------------------------------------------------- nav */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.nav-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 24px;
+}
+
+/*
+ * Sized against the reference's own source (vibe4trading globals.css):
+ * their nav-links are 24px desktop / 16px mobile, brand-mark 33px/weight 700.
+ * Ours doesn't need to hit those numbers exactly — different type family,
+ * uppercase mono brand instead of a wordmark — but it needed to move
+ * decisively in that direction, not another 1px nudge.
+ */
+.brand {
+  font-family: var(--mono);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  border-bottom: none;
+}
+.brand:hover {
+  color: var(--signal);
+}
+
+.nav nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 26px;
+}
+
+.nav nav a {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--dim);
+  border-bottom: none;
+}
+.nav nav a:hover {
+  color: var(--signal);
+}
+
+@media (max-width: 640px) {
+  .brand {
+    font-size: 18px;
+  }
+  .nav nav a {
+    font-size: 16px;
+  }
+}
+
+/* --------------------------------------------------------------- ticker */
+
+/*
+ * A continuous marquee under the nav. Its whole job is liveness: real events
+ * here are minutes apart, so without something visibly moving a first-time
+ * visitor assumes the system is dead. Content scrolls right-to-left and loops
+ * seamlessly because the track renders its items twice and animates to -50%.
+ */
+.ticker {
+  border-top: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  /* Fade both ends so items enter and leave rather than getting clipped. */
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll linear infinite;
+}
+
+.ticker:hover .ticker-track {
+  animation-play-state: paused;
+}
+
+.ticker-run {
+  display: flex;
+  flex-shrink: 0;
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-idle {
+  animation: none;
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 26px 9px 0;
+  margin-right: 26px;
+  font-size: 13.5px;
+  white-space: nowrap;
+  color: var(--dimmer);
+  border-bottom: none;
+  border-right: 1px solid var(--line);
+}
+
+a.ticker-item:hover {
+  color: var(--signal);
+}
+a.ticker-item:hover .ticker-who {
+  color: var(--signal);
+}
+
+.ticker-who {
+  font-family: var(--mono);
+  color: var(--dim);
+  letter-spacing: 0.02em;
+}
+
+.ticker-what {
+  color: var(--dimmer);
+}
+
+.ticker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--dimmer);
+}
+.ticker-dot.pass {
+  background: var(--good);
+}
+.ticker-dot.reject {
+  background: var(--bad);
+}
+.ticker-dot.pending {
+  background: var(--signal);
+}
+.ticker-dot.market {
+  background: var(--dim);
+}
+
+/*
+ * Reduced motion: stop the scroll rather than hide the strip. The content is
+ * still readable, it just no longer moves on its own.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+  .ticker {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .ticker-item {
+    font-size: 12.5px;
+    padding-right: 18px;
+    margin-right: 18px;
+  }
+}
+
+/* ------------------------------------------------------------ status bar */
+
+.status {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(10, 10, 11, 0.86);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+  margin-bottom: 48px;
+}
+
+.status-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  align-items: baseline;
+  font-size: 14px;
+  color: var(--dim);
+}
+
+.status b {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.pulse {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-dim);
+  margin-right: 9px;
+  animation: pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ hero */
+
+.hero {
+  padding: 4px 0 48px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: end;
+}
+
+.hero h1 {
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  margin: 0 0 16px;
+  max-width: 19ch;
+  font-weight: 700;
+}
+
+.hero p {
+  color: var(--dim);
+  max-width: 60ch;
+  margin: 0 0 10px;
+  font-size: 16.5px;
+}
+
+.hero-stat {
+  text-align: right;
+  white-space: nowrap;
+  padding-bottom: 4px;
+}
+
+.hero-stat .n {
+  display: block;
+  font-family: var(--mono);
+  font-size: clamp(36px, 5vw, 58px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--signal);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.hero-stat .l {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+  .hero-stat {
+    text-align: left;
+  }
+}
+
+/* ---------------------------------------------------------------- bands */
+
+section {
+  margin-bottom: 58px;
+}
+
+h2 {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.sub {
+  color: var(--dim);
+  font-size: 14px;
+  margin: 0 0 24px;
+  max-width: 70ch;
+}
+
+/* --------------------------------------------------------------- windows */
+
+.asset-group {
+  margin-bottom: 30px;
+}
+
+.asset-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 0 0 10px 14px;
+  border-left: 2px solid var(--signal);
+  margin-bottom: 4px;
+}
+
+.asset-head .name {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.asset-head .cadences {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dimmer);
+}
+
+.win {
+  display: grid;
+  grid-template-columns: 100px minmax(150px, 1fr) minmax(210px, 1.3fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding: 16px 14px;
+  border-bottom: 1px solid var(--line);
+  transition: background-color 0.4s ease;
+}
+
+.win:hover {
+  background: var(--raised);
+}
+
+.win:last-child {
+  border-bottom: 0;
+}
+
+.cadence {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.count {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-top-color: rgba(255, 255, 255, 0.22);
+  border-radius: 5px;
+  padding: 4px 9px;
+}
+
+.count small {
+  display: block;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  margin-top: 5px;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.book {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.book .up {
+  color: var(--good);
+}
+.book .down {
+  color: var(--bad);
+}
+
+.tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.tag.live {
+  color: var(--signal);
+  border-color: color-mix(in srgb, var(--signal) 45%, transparent);
+  background: var(--signal-dim);
+}
+.tag.warn {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+}
+.tag.stop {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+}
+
+/* Up/Down carry the same green/red used everywhere else a market side is
+   shown — the book table, the probability bar — so a tag never disagrees
+   with the row it summarizes. */
+.tag.tag-up {
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 40%, transparent);
+  background: color-mix(in srgb, var(--good) 10%, transparent);
+}
+.tag.tag-down {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+
+/* --------------------------------------------------------- market table */
+
+/*
+ * The open-windows board, shaped like a CoinGecko/CoinMarketCap listing:
+ * column headers, hairline row separators, and numerics right-aligned on
+ * tabular figures so digits line up down the column and can be compared by eye.
+ *
+ * It scrolls horizontally rather than collapsing on narrow screens — that is
+ * what every market table does, and stacking these rows into cards would lose
+ * the column comparison that is the entire reason to use a table here.
+ */
+.mkt-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.mkt {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.mkt thead th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  padding: 13px 16px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line-strong);
+  white-space: nowrap;
+}
+
+.mkt th.n,
+.mkt td.n {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.mkt tbody td {
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.mkt tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.mkt tbody tr {
+  transition: background-color 0.25s ease;
+}
+.mkt tbody tr:hover {
+  background: var(--raised);
+}
+
+.mkt-rank {
+  width: 44px;
+  color: var(--dimmer);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.mkt-link {
+  display: inline-flex;
+  align-items: center;
+  border-bottom: none;
+  color: inherit;
+}
+.mkt-link:hover .mkt-name {
+  color: var(--signal);
+}
+
+.mkt-name {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: color 0.2s ease;
+}
+
+.mkt-cadence {
+  margin-left: 9px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dimmer);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+
+.mkt td.up {
+  color: var(--good);
+}
+.mkt td.down {
+  color: var(--bad);
+}
+.mkt td.dim {
+  color: var(--dim);
+}
+
+.mkt-clock {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.mkt-act {
+  text-align: right;
+}
+
+/* Where a market table puts a sparkline, a binary market puts its own split:
+   one number between 0 and 1, drawn rather than charted. */
+.mkt-prob {
+  width: 190px;
+  min-width: 150px;
+}
+
+.probbar {
+  display: block;
+  height: 7px;
+  width: 100%;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bad) 45%, transparent);
+  overflow: hidden;
+}
+
+.probbar-up {
+  display: block;
+  height: 100%;
+  background: var(--good);
+  border-radius: 4px 0 0 4px;
+}
+
+.mkt-empty {
+  font-size: 12.5px;
+  color: var(--dimmer);
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------- docs */
+
+/*
+ * Docs are prose, not a data board, so they get their own type scale: a real
+ * measure (~72ch), larger body text, and headings that separate sections
+ * instead of the tiny uppercase labels used on the dense pages.
+ */
+.docs {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 56px;
+  padding-top: 44px;
+  align-items: start;
+}
+
+.docs-nav-inner {
+  position: sticky;
+  top: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.docs-link {
+  display: block;
+  padding: 9px 12px;
+  border: 0;
+  border-left: 2px solid var(--line);
+  border-radius: 0;
+  color: var(--dim);
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.docs-link:hover {
+  border-left-color: var(--signal);
+  background: var(--raised);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.docs-link-label {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+.docs-link-blurb {
+  display: block;
+  font-size: 12.5px;
+  color: var(--dimmer);
+  margin-top: 2px;
+}
+
+.docs-body {
+  max-width: 78ch;
+  padding-bottom: 96px;
+}
+
+.docs-body h1 {
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 20px;
+  font-weight: 700;
+}
+
+.docs-body h2 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink);
+  margin: 52px 0 14px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+
+.docs-body h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 32px 0 10px;
+}
+
+.docs-body p,
+.docs-body li {
+  font-size: 16.5px;
+  line-height: 1.72;
+  color: var(--dim);
+}
+
+.docs-body p {
+  margin: 0 0 16px;
+}
+
+.docs-body strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.docs-body em {
+  color: var(--ink);
+  font-style: italic;
+}
+
+.docs-lede {
+  font-size: 19px !important;
+  line-height: 1.6 !important;
+  color: var(--ink) !important;
+  margin-bottom: 30px !important;
+}
+
+.docs-body ul,
+.docs-body ol {
+  margin: 0 0 18px;
+  padding-left: 22px;
+}
+
+.docs-body li {
+  margin-bottom: 8px;
+}
+
+.docs-body code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.docs-code {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 18px 20px;
+  overflow-x: auto;
+  margin: 0 0 18px;
+  white-space: pre;
+}
+
+.docs-note {
+  font-size: 14.5px !important;
+  color: var(--dimmer) !important;
+  border-left: 2px solid var(--line-strong);
+  padding-left: 14px;
+}
+
+.docs-callout {
+  border: 1px solid color-mix(in srgb, var(--signal) 34%, transparent);
+  background: var(--signal-dim);
+  border-radius: 6px;
+  padding: 18px 20px;
+  margin: 26px 0;
+  font-size: 15.5px;
+  line-height: 1.66;
+  color: var(--dim);
+}
+
+.docs-callout strong {
+  color: var(--ink);
+}
+
+.docs-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 20px;
+  font-size: 15px;
+}
+
+.docs-table th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.docs-table th.n,
+.docs-table td.n {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.docs-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--dim);
+  vertical-align: top;
+  line-height: 1.6;
+}
+
+.docs-dim {
+  color: var(--dimmer);
+  font-size: 13.5px;
+}
+
+@media (max-width: 900px) {
+  .docs {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .docs-nav-inner {
+    position: static;
+    /* On a phone the sidebar becomes a scrollable row of chips above the
+       article, rather than a tall stack you'd scroll past to reach the text. */
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 6px;
+  }
+  .docs-link {
+    border-left: 0;
+    border-bottom: 2px solid var(--line);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .docs-link:hover {
+    border-left: 0;
+    border-bottom-color: var(--signal);
+  }
+  .docs-link-blurb {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ feed */
+
+.feed-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 70px 150px 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 12px 14px 12px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.feed-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.feed-row.pending::before {
+  background: var(--signal);
+  animation: pulse 2.2s ease-in-out infinite;
+}
+.feed-row.pass::before {
+  background: var(--good);
+}
+.feed-row.reject::before {
+  background: var(--bad);
+}
+
+.feed-row .blk {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--dimmer);
+  font-variant-numeric: tabular-nums;
+}
+
+.feed-row .who {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-row .what {
+  color: var(--dim);
+}
+
+.feed-row .what b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.feed-row.reject .what b {
+  color: var(--bad);
+}
+.feed-row.pass .what b {
+  color: var(--good);
+}
+
+/* ----------------------------------------------------------------- empty */
+
+.empty {
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  padding: 34px;
+  color: var(--dim);
+  font-size: 14px;
+  text-align: center;
+}
+
+.empty code {
+  font-family: var(--mono);
+  color: var(--signal);
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------- agents */
+
+.agent {
+  display: block;
+  padding: 18px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  transition: background-color 0.4s ease;
+}
+
+.agent:hover {
+  background: var(--raised);
+}
+
+.agent-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.agent-head .name {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.agent .strategy {
+  color: var(--dim);
+  font-size: 14px;
+  margin-top: 8px;
+  max-width: 84ch;
+}
+
+.addr {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--dimmer);
+  border-bottom: 1px solid transparent;
+}
+.addr:hover {
+  color: var(--signal);
+  border-color: var(--signal);
+}
+
+footer {
+  border-top: 1px solid var(--line);
+  padding-top: 22px;
+  color: var(--dimmer);
+  font-size: 13px;
+}
+
+footer code {
+  font-family: var(--mono);
+  color: var(--dim);
+}
+
+@media (max-width: 720px) {
+  .win,
+  .feed-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding-left: 14px;
+  }
+  .feed-row::before {
+    display: none;
+  }
+}
+
+/*
+ * A row of stat tags — used wherever a `.win` needs N equal columns of tags
+ * instead of the default window/feed layout (deploy's immutable-bounds strip,
+ * an agent's at-a-glance strip, a request's vote count). Defined as a class
+ * with its own responsive columns rather than an inline `gridTemplateColumns`,
+ * because an inline style has higher specificity than this file's `@media`
+ * rules and would silently win over them on a phone — three or five columns
+ * jammed into a 360px screen, not collapsing to one no matter the viewport.
+ */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 20px;
+  align-items: center;
+  padding: 16px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* A `.win`-shaped row of "label + action" (e.g. a request and its vote count) —
+   same mobile-collapse rule as `.win`, just declared as its own class so no
+   inline style can outrank the `@media` query below. */
+.request-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+@media (max-width: 720px) {
+  .request-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+/* ================================================================
+ * The landing sequence — cinematic, scroll-snapped, uppercase and
+ * wide-tracked. Distinct from the departure-board data pages above:
+ * this is the pitch, the pages above are the proof.
+ * ================================================================ */
+
+.landing {
+  position: relative;
+  height: calc(100dvh - 49px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing {
+    scroll-behavior: auto;
+  }
+}
+
+.scene {
+  padding: 88px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: start;
+}
+
+.scene-inner {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.eyebrow-lg {
+  font-size: 12.5px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+}
+
+.headline {
+  font-size: clamp(26px, 4.6vw, 54px);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  margin: 18px 0;
+}
+
+.headline .caret {
+  color: var(--signal);
+  animation: pulse 1s steps(2) infinite;
+}
+
+.lede {
+  font-size: clamp(14px, 1.6vw, 18px);
+  line-height: 1.9;
+  letter-spacing: 0.02em;
+  color: var(--dim);
+  max-width: 62ch;
+  margin: 0 auto;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------ hero */
+
+.hero-scene {
+  position: relative;
+  min-height: 100dvh;
+  flex-direction: column;
+  gap: 0;
+}
+
+.hero-art {
+  position: relative;
+  width: 100%;
+  max-width: 780px;
+  height: min(56vh, 460px);
+  margin: 0 auto;
+}
+
+.hero-art canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.float-label {
+  position: absolute;
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--dim);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.float-label.l1 {
+  left: 2%;
+  top: 6%;
+}
+.float-label.l2 {
+  right: 3%;
+  top: 16%;
+}
+.float-label.l3 {
+  left: 4%;
+  bottom: 20%;
+}
+.float-label.l4 {
+  right: 5%;
+  bottom: 10%;
+}
+
+@media (max-width: 720px) {
+  .float-label {
+    display: none;
+  }
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 30px;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--ink);
+  color: var(--ink);
+  padding: 14px 30px;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+.cta:hover {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #0a0a0b;
+}
+
+.cta-ghost {
+  border-color: var(--line-strong);
+  color: var(--dim);
+}
+.cta-ghost:hover {
+  background: transparent;
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+/* --------------------------------------------------------- step cards */
+
+.step-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 46px;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .step-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .step-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.step-card {
+  border: 1px solid var(--line-strong);
+  padding: 22px;
+  transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+.step-card:hover {
+  border-color: var(--signal);
+  background: var(--signal-dim);
+}
+
+.step-card .num {
+  font-family: var(--mono);
+  font-size: 34px;
+  color: var(--signal);
+}
+
+.step-card h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  margin: 14px 0 10px;
+}
+
+.step-card p {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--dim);
+  margin: 0;
+}
+
+/* -------------------------------------------------------- floor scene */
+
+.floor-scene {
+  align-items: stretch;
+  justify-content: flex-start;
+  padding-top: 96px;
+}
+
+.floor-scene .scene-inner {
+  max-width: 1180px;
+  text-align: left;
+}
+
+.scroll-hint {
+  margin-top: 54px;
+  font-size: 12.5px;
+  letter-spacing: 0.18em;
+  color: var(--dimmer);
+}
+

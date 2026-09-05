@@ -1,0 +1,27 @@
+node_modules/
+.env
+.env.local
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+
+# Next.js
+web/.next/
+web/out/
+web/node_modules/
+
+.DS_Store
+*.log
+
+# Cloned reference repos — study material, never shipped
+.reference/
+
+# Requests board runtime store — demand data, not source
+web/data/
+
+# Internal strategy/build docs — not part of the public submission
+idea.md
+claude.md

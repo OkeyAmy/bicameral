@@ -1,0 +1,5 @@
+packages:
+  - runner
+  - web
+allowBuilds:
+  esbuild: true

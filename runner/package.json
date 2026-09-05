@@ -1,0 +1,24 @@
+{
+  "name": "@bicameral/runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Keeper + indexer + verifier. Pokes and records. Makes no trading decisions.",
+  "scripts": {
+    "discover": "tsx src/discover.ts",
+    "preflight": "tsx src/preflight.ts",
+    "keeper": "tsx src/keeper.ts",
+    "index": "tsx src/indexer.ts",
+    "verify": "tsx src/verify.ts",
+    "seed": "tsx src/seed.ts"
+  },
+  "dependencies": {
+    "@somnia-chain/markets-sdk": "^0.29.0",
+    "dotenv": "^16.4.5",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
