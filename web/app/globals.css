@@ -511,10 +511,16 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
-.book .up {
+/*
+ * Global convention, not a one-off: green means the UP side / pass / agree,
+ * red means DOWN side / reject / disagree, everywhere in this app — the
+ * order book, the tape, tags, anywhere a market side or an outcome is shown.
+ * A viewer only has to learn this once.
+ */
+.up {
   color: var(--good);
 }
-.book .down {
+.down {
   color: var(--bad);
 }
 
@@ -677,27 +683,43 @@ h2 {
   text-align: right;
 }
 
-/* Where a market table puts a sparkline, a binary market puts its own split:
-   one number between 0 and 1, drawn rather than charted. */
-.mkt-prob {
-  width: 190px;
-  min-width: 150px;
+/* Polymarket's convention: the live number sits ON the button, not beside it
+   in a separate column or drawn as a bar. Bold + colored reads at a glance;
+   green/red already means up/down everywhere else on this site. */
+.mkt-outcomes-col {
+  width: 230px;
+  min-width: 210px;
 }
 
-.probbar {
-  display: block;
-  height: 7px;
-  width: 100%;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--bad) 45%, transparent);
-  overflow: hidden;
+.outcome-pair {
+  display: inline-flex;
+  gap: 6px;
+  border-bottom: none;
 }
 
-.probbar-up {
-  display: block;
-  height: 100%;
-  background: var(--good);
-  border-radius: 4px 0 0 4px;
+.outcome-btn {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 7px 11px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: filter 0.2s ease;
+}
+.outcome-pair:hover .outcome-btn {
+  filter: brightness(1.15);
+}
+
+.outcome-btn.up {
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--good) 40%, transparent);
+}
+.outcome-btn.down {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bad) 40%, transparent);
 }
 
 .mkt-empty {
@@ -941,69 +963,123 @@ h2 {
   }
 }
 
-/* ------------------------------------------------------------------ feed */
+/* ------------------------------------------------------------------ tape */
 
-.feed-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: 70px 150px 1fr auto;
-  gap: 16px;
-  align-items: baseline;
-  padding: 12px 14px 12px 18px;
-  border-bottom: 1px solid var(--line);
-  font-size: 15px;
-}
-
-.feed-row::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--line-strong);
+/*
+ * The decision tape: Binance/KuCoin "Market Trades" convention. One row per
+ * decision, colour carries the meaning, numbers are tabular, nothing is
+ * written in a sentence. Structurally the same dense-table pattern as
+ * `.mkt` (the market listing) — same font sizes, same right-aligned
+ * numerics — so the two panels read as one visual language, not two.
+ */
+.tape-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
 }
 
-.feed-row.pending::before {
-  background: var(--signal);
-  animation: pulse 2.2s ease-in-out infinite;
-}
-.feed-row.pass::before {
-  background: var(--good);
-}
-.feed-row.reject::before {
-  background: var(--bad);
-}
-
-.feed-row .blk {
+.tape {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 14px;
   font-family: var(--mono);
-  font-size: 13px;
-  color: var(--dimmer);
   font-variant-numeric: tabular-nums;
 }
 
-.feed-row .who {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.tape thead th {
+  text-align: left;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--dimmer);
+  padding: 11px 14px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line-strong);
   white-space: nowrap;
 }
 
-.feed-row .what {
+.tape th.n,
+.tape td.n {
+  text-align: right;
+}
+
+.tape-side-col {
+  min-width: 84px;
+}
+
+.tape tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
   color: var(--dim);
 }
 
-.feed-row .what b {
-  color: var(--ink);
-  font-weight: 500;
+.tape tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-.feed-row.reject .what b {
+.tape tbody tr {
+  transition: background-color 0.25s ease;
+}
+.tape tbody tr:hover {
+  background: var(--raised);
+}
+
+/* A row still waiting on its verdict — the tape's version of an unfilled
+   order: visibly present, visibly not resolved yet, no sentence needed. */
+.tape tr.tape-pending {
+  opacity: 0.6;
+}
+
+.tape-agent {
+  font-family: var(--sans);
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 13.5px;
+}
+
+.tape-side {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.tape-side.up {
+  color: var(--good);
+}
+.tape-side.down {
   color: var(--bad);
 }
-.feed-row.pass .what b {
-  color: var(--good);
+.tape-side.abstain {
+  color: var(--dimmer);
+}
+.tape-side.pending {
+  color: var(--signal);
+}
+
+.tape-mark {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.tape-link {
+  text-align: right;
+}
+.tape-link a {
+  color: var(--dimmer);
+  border-bottom: 0;
+  font-size: 15px;
+}
+.tape-link a:hover {
+  color: var(--signal);
+}
+
+@media (max-width: 640px) {
+  .tape {
+    font-size: 13px;
+  }
 }
 
 /* ----------------------------------------------------------------- empty */
@@ -1068,6 +1144,45 @@ h2 {
   border-color: var(--signal);
 }
 
+/* Owner panel: fund/withdraw is the one place a connected wallet signs
+   something outside /deploy, so it borrows the same input/tag vocabulary
+   rather than introducing a new form language for four fields. */
+.owner-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+@media (max-width: 640px) {
+  .owner-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.owner-inline {
+  display: flex;
+  gap: 10px;
+}
+
+.owner-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  padding: 9px 11px;
+  font-family: var(--mono);
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.owner-balance {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 footer {
   border-top: 1px solid var(--line);
   padding-top: 22px;
@@ -1113,19 +1228,164 @@ footer code {
 /* A `.win`-shaped row of "label + action" (e.g. a request and its vote count) —
    same mobile-collapse rule as `.win`, just declared as its own class so no
    inline style can outrank the `@media` query below. */
-.request-row {
+/* -------------------------------------------------------------- requests */
+
+/*
+ * The requests board — same visual language as Canny/Frill/Upvoty, the
+ * established convention for a "vote for what to build next" list: a vertical
+ * vote box on the left (chevron + count, highlights once you've voted), the
+ * idea's title and note to its right, cards instead of table rows.
+ */
+.req-form {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  padding: 20px;
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 16px;
-  align-items: center;
-  padding: 16px 14px;
-  border-bottom: 1px solid var(--line);
+  gap: 12px;
+  max-width: 620px;
 }
 
-@media (max-width: 720px) {
-  .request-row {
-    grid-template-columns: 1fr;
-    gap: 10px;
+.req-input {
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  color: var(--ink);
+  padding: 11px 13px;
+  font-size: 15px;
+  font-family: var(--sans);
+}
+.req-input:focus {
+  outline: none;
+  border-color: var(--signal);
+}
+.req-input::placeholder {
+  color: var(--dimmer);
+}
+
+.req-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.req-tab {
+  padding: 7px 16px;
+  border-radius: 5px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--dim);
+  border: 1px solid transparent;
+}
+.req-tab:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+.req-tab.active {
+  color: var(--ink);
+  background: var(--raised);
+  border-color: var(--line-strong);
+}
+
+.req-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.req-card {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 18px;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 18px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.req-card:hover {
+  border-color: var(--line-strong);
+  background: var(--raised);
+}
+
+/* The vote box: this IS the interaction, styled like a real upvote control —
+   a chevron above a tabular-numeral count, highlighting once you've voted. */
+.req-vote {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 12px 0;
+  background: var(--bg);
+  color: var(--dim);
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+.req-vote:hover {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+.req-vote.voted {
+  border-color: color-mix(in srgb, var(--signal) 45%, transparent);
+  background: var(--signal-dim);
+  color: var(--signal);
+  cursor: default;
+}
+.req-vote:disabled {
+  cursor: default;
+}
+
+.req-chevron {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.req-count {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.req-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.req-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.req-note {
+  font-size: 14px;
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+.req-meta {
+  font-size: 12px;
+  color: var(--dimmer);
+  margin-top: 2px;
+}
+
+@media (max-width: 560px) {
+  .req-card {
+    grid-template-columns: 52px 1fr;
+    gap: 12px;
+    padding: 14px;
+  }
+  .req-title {
+    font-size: 15px;
   }
 }
 

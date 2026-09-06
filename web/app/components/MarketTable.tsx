@@ -10,10 +10,12 @@ import { cadenceLabel } from "../../lib/floor";
  * market, numerics right-aligned on tabular figures so digits line up down the
  * column, and the venue's own action at the end of the row.
  *
- * Where those tables put a 7-day sparkline, this puts an implied-probability
- * bar. A binary Event Contract has no price history to draw — it has a single
- * number between 0 and 1 — so the honest visual is the split itself, not a
- * fabricated chart.
+ * The outcome cell is Polymarket's convention, not a sparkline or a bar: two
+ * bold pill buttons, UP and DOWN, the live probability printed directly ON
+ * each one. That reads at a glance in a way a thin progress bar doesn't —
+ * Polymarket puts the number on the button because that IS the market, and
+ * green-for-yes/red-for-no is already the exact convention used everywhere
+ * else on this site, so nothing new has to be learned to read it here.
  */
 export function MarketTable({ windows }: { windows: WindowView[] }) {
   const rows = [...windows].sort(
@@ -27,12 +29,10 @@ export function MarketTable({ windows }: { windows: WindowView[] }) {
           <tr>
             <th className="mkt-rank">#</th>
             <th>Market</th>
-            <th className="n">Up</th>
-            <th className="n">Down</th>
+            <th className="mkt-outcomes-col">Outcome</th>
             <th className="n">Spread</th>
             <th className="n">Bid</th>
             <th className="n">Ask</th>
-            <th className="mkt-prob">Implied probability</th>
             <th className="n">Closes in</th>
             <th />
           </tr>
@@ -45,7 +45,6 @@ export function MarketTable({ windows }: { windows: WindowView[] }) {
               w.bestAsk !== undefined && w.bestBid !== undefined
                 ? w.bestAsk - w.bestBid
                 : undefined;
-            const pct = up !== undefined ? Math.max(2, Math.min(98, up * 100)) : null;
 
             return (
               <tr key={w.marketId}>
@@ -58,21 +57,24 @@ export function MarketTable({ windows }: { windows: WindowView[] }) {
                   </Link>
                 </td>
 
-                <td className="n up">{up !== undefined ? up.toFixed(3) : "—"}</td>
-                <td className="n down">{down !== undefined ? down.toFixed(3) : "—"}</td>
+                <td className="mkt-outcomes-col">
+                  {up === undefined && down === undefined ? (
+                    <span className="mkt-empty">no resting liquidity</span>
+                  ) : (
+                    <Link href={`/windows/${w.marketId}`} className="outcome-pair">
+                      <span className="outcome-btn up">
+                        UP {up !== undefined ? up.toFixed(3) : "—"}
+                      </span>
+                      <span className="outcome-btn down">
+                        DOWN {down !== undefined ? down.toFixed(3) : "—"}
+                      </span>
+                    </Link>
+                  )}
+                </td>
+
                 <td className="n dim">{spread !== undefined ? spread.toFixed(3) : "—"}</td>
                 <td className="n dim">{w.bidDepth ?? "0"}</td>
                 <td className="n dim">{w.askDepth ?? "0"}</td>
-
-                <td className="mkt-prob">
-                  {pct === null ? (
-                    <span className="mkt-empty">no resting liquidity</span>
-                  ) : (
-                    <span className="probbar" title={`UP ${up!.toFixed(3)}`}>
-                      <span className="probbar-up" style={{ width: `${pct}%` }} />
-                    </span>
-                  )}
-                </td>
 
                 <td className="n mkt-clock">
                   <Countdown to={w.expiry} />

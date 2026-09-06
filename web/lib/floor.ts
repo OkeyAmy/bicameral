@@ -276,16 +276,32 @@ async function scan(addresses: Address[], windowsBack: number) {
   return out;
 }
 
+/** The one factory `/deploy` sends new agents to. */
 export function factoryAddress(): Address | null {
   const v = process.env.FACTORY_ADDRESS;
   return v ? (v as Address) : null;
 }
 
-export async function getAgents(): Promise<AgentView[]> {
-  const factory = factoryAddress();
-  if (!factory) return [];
+/**
+ * Every factory this site has ever pointed at — the current one plus any
+ * retired ones — so redeploying the factory (to ship a contract fix, say)
+ * doesn't erase agents that were live under the old address. `FACTORY_ADDRESS`
+ * is always included even if `KNOWN_FACTORIES` forgets to list it.
+ */
+export function knownFactories(): Address[] {
+  const listed = (process.env.KNOWN_FACTORIES ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean) as Address[];
+  const active = factoryAddress();
+  return active && !listed.includes(active) ? [...listed, active] : listed;
+}
 
-  const logs = await scan([factory], 200);
+export async function getAgents(): Promise<AgentView[]> {
+  const factories = knownFactories();
+  if (!factories.length) return [];
+
+  const logs = await scan(factories, 200);
   const agents: AgentView[] = [];
 
   for (const l of logs) {
@@ -425,6 +441,24 @@ export async function getFeed(limit = 60): Promise<FeedRow[]> {
       case "RequestFailed":
         rows.push({ ...base, stage: "failed" });
         break;
+    }
+  }
+
+  // `OrderPlaced` and `Redeemed` carry no requestId in their args — the
+  // contract only needs marketId to act, so it never emits one. Without this,
+  // those two stages fall into their own request-id-less bucket wherever the
+  // caller groups rows into one decision per requestId (as the decision tape
+  // does), which reads as a second, mostly-empty decision next to the real
+  // one. Attach them to the most recent `asked` row for the same agent+market
+  // at or before this block — the same join `runner/src/indexer.ts` already
+  // uses for exactly this reason.
+  const opened = rows.filter((r) => r.stage === "asked");
+  for (const r of rows) {
+    if ((r.stage === "order" || r.stage === "settled") && !r.requestId) {
+      const anchor = opened
+        .filter((w) => w.agent === r.agent && w.marketId === r.marketId && w.block <= r.block)
+        .sort((a, b) => b.block - a.block)[0];
+      if (anchor) r.requestId = anchor.requestId;
     }
   }
 

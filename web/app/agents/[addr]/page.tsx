@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
+import type { Address } from "viem";
 import { getAgents, getFeed } from "../../../lib/floor";
-import { FeedRowView } from "../../components/FeedRow";
+import { DecisionTape } from "../../components/DecisionTape";
+import { OwnerPanel } from "../../components/OwnerPanel";
+import { traderAbi } from "@bicameral/runner/src/contracts.js";
+import { COLLATERAL_ADDRESS } from "../../../lib/env";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -62,19 +66,16 @@ export default async function AgentDetail({ params }: { params: Promise<{ addr: 
         </div>
       </section>
 
+      <OwnerPanel
+        agent={agent.address as Address}
+        owner={agent.owner as Address}
+        traderAbi={traderAbi}
+        collateral={COLLATERAL_ADDRESS as Address | null}
+      />
+
       <section>
-        <h2>Full decision history</h2>
-        <p className="sub">
-          Every stage this agent went through, newest first: the model&rsquo;s verdict, the
-          risk-gate call, the receipt.
-        </p>
-        {rows.length === 0 ? (
-          <div className="empty">No decisions recorded for this agent yet.</div>
-        ) : (
-          rows
-            .sort((a, b) => b.block - a.block)
-            .map((r, i) => <FeedRowView r={r} showAgent={false} key={`${r.tx}-${i}`} />)
-        )}
+        <h2>History</h2>
+        <DecisionTape rows={rows} showAgent={false} />
       </section>
 
       <footer>

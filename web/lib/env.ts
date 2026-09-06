@@ -13,3 +13,4 @@ loadEnv({ path: ENV_FILE() });
 
 export const FACTORY_ADDRESS = process.env.FACTORY_ADDRESS || null;
 export const IMPLEMENTATION_ADDRESS = process.env.IMPLEMENTATION_ADDRESS || null;
+export const COLLATERAL_ADDRESS = process.env.COLLATERAL || null;

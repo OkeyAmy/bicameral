@@ -15,7 +15,11 @@ export interface MarketRequest {
   createdAt: number;
 }
 
-const DIR = join(process.cwd(), "data");
+// Defaults to a folder inside the repo, but a deploy that re-clones into a
+// fresh directory each release (rather than git-pulling in place) would wipe
+// that on every deploy. Point REQUESTS_DATA_DIR at a path outside the repo
+// (e.g. /var/lib/bicameral) on such a host to survive redeploys.
+const DIR = process.env.REQUESTS_DATA_DIR || join(process.cwd(), "data");
 const FILE = join(DIR, "requests.json");
 
 async function ensure(): Promise<MarketRequest[]> {

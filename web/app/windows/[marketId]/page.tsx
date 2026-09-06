@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getWindow, getFeed, cadenceLabel } from "../../../lib/floor";
 import { Countdown } from "../../Countdown";
-import { FeedRowView } from "../../components/FeedRow";
+import { DecisionTape } from "../../components/DecisionTape";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -119,19 +119,8 @@ export default async function WindowDetail({
       </section>
 
       <section>
-        <h2>Agent decisions on this window</h2>
-        <p className="sub">
-          Every stage any agent went through on this specific market. Rejections included.
-        </p>
-        {feed.length === 0 ? (
-          <div className="empty">
-            No agent has acted on this window yet. Agents post here the moment they do.
-          </div>
-        ) : (
-          feed
-            .sort((a, b) => b.block - a.block)
-            .map((r, i) => <FeedRowView r={r} key={`${r.tx}-${i}`} />)
-        )}
+        <h2>Decisions</h2>
+        <DecisionTape rows={feed} />
       </section>
 
       <footer>

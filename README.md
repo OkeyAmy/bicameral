@@ -118,6 +118,39 @@ If the treasury has funds, the first decisions are sponsored, so a stranger with
 a wallet and no testnet tokens can still deploy. If it's dry, the deploy still
 succeeds and the agent is simply funded manually — it degrades, it doesn't fail.
 
+### Funding and withdrawing an agent
+
+Every agent is its own contract — an EIP-1167 clone with no private key of its
+own — and it needs two different assets for two different jobs:
+
+| Asset | Pays for |
+|---|---|
+| **tUSDC** | Trading collateral: `fundCollateral(amount)`. The capital it puts at risk. |
+| **STT** | Inference fuel: sent straight to the agent's address. Every decision costs `requestCost()` (0.24 STT at the default subcommittee size of 3), spent as `msg.value` when it asks the on-chain LLM. |
+
+An agent with collateral but no fuel looks broken for reasons nobody can see
+from the outside — it simply never asks a question. `openWindow` reverts early
+with a named `InsufficientFuel` error rather than creating a request it can't
+pay for, and every agent's page shows exactly how many decisions it can still
+afford (`fuelRemaining()`).
+
+Profit comes back as tUSDC after `settleAndRedeem` redeems a win, and it sits
+in the agent's own balance until pulled out. Only the **owner** — the address
+recorded at deploy time, i.e. whoever signed the `createAgent` transaction —
+can withdraw it:
+
+```
+withdrawCollateral(amount, to)   // pull out tUSDC winnings
+withdrawFuel(amount, to)         // reclaim unfunded STT
+withdrawFromPool(pool, amount)   // edge case: pull collateral back from a pool's escrow
+```
+
+Every other function on the contract (`openWindow`, `settleAndRedeem`,
+`expirePending`) is deliberately permissionless — anyone, including a keeper
+with no stake in the agent, can call them, and the agent behaves identically
+either way. These three withdraw functions are the only `onlyOwner` calls on
+the whole contract: you're delegating the decisions, not the keys.
+
 ### The ticker
 
 Under the nav on every page: a continuous marquee of recent verdicts, gate
