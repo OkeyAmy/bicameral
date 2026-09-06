@@ -25,3 +25,10 @@ web/data/
 # Internal strategy/build docs — not part of the public submission
 idea.md
 claude.md
+hack.md
+
+# Design-reference screenshots — working material, not a project asset
+images/
+
+# TS incremental build cache — a local artifact, never source
+*.tsbuildinfo
