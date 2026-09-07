@@ -14,18 +14,18 @@ const EXAMPLES = [
     label: "Fade the extremes",
     risk: "Loses if a real breakout keeps running past the edge instead of reverting.",
     prompt:
-      "Fade the extremes: if the market-implied probability of UP is below 10% or above 90%, bet on reversion toward 50% before this window expires. Otherwise abstain.",
+      "Fade the crowd and always decide. If the UP price is above 0.75 buy DOWN; if it is below 0.25 buy UP; otherwise bet against whichever side is above 0.62 or below 0.38. Never abstain unless the price is within 0.02 of an edge the strategy can't read.",
   },
   {
     label: "Ride the momentum",
     risk: "Loses if the trend reverses right before expiry and the price snaps back.",
     prompt:
-      "Ride the momentum: bet on whichever side, UP or DOWN, has shown rising price and volume over the last few minutes of this window. Otherwise abstain.",
+      "Ride the momentum and never sit out. Bet on whichever side, UP or DOWN, has shown rising price and volume, or is trending from the current mid. If UP is above 0.55 buy UP, if below 0.45 buy DOWN, otherwise buy whichever side the current mid leans away from.",
   },
   {
     label: "Coin flip",
     risk: "Has no edge by design, expect it to roughly break even before fees.",
-    prompt: "Flip a coin: choose UP or DOWN at random for this window, with no analysis of price or volume.",
+    prompt: "Flip a coin: choose UP or DOWN at random for this window, with no analysis of price or volume. Never abstain.",
   },
 ];
 

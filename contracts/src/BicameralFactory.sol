@@ -113,7 +113,8 @@ contract BicameralFactory is IMarketRegistry {
         address collateral_,
         address marketsModule_,
         uint256 llmAgentId_,
-        uint256 perAgentReward_
+        uint256 perAgentReward_,
+        address implementation_
     ) {
         owner = msg.sender;
         platform = platform_;
@@ -121,7 +122,7 @@ contract BicameralFactory is IMarketRegistry {
         marketsModule = marketsModule_;
         llmAgentId = llmAgentId_;
         perAgentReward = perAgentReward_;
-        implementation = address(new BicameralTrader());
+        implementation = implementation_;
     }
 
     // ------------------------------------------------------------- deployment

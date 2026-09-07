@@ -35,7 +35,7 @@ const ROSTER: Personality[] = [
   {
     name: "fade-extremes",
     strategy:
-      "Fade the crowd. If the UP price is above 0.80, buy DOWN. If it is below 0.20, buy UP. Otherwise abstain.",
+      "Fade the crowd. If the UP price is above 0.75 buy DOWN; if it is below 0.25 buy UP; if it is between 0.25 and 0.75 still act: buy the side the book has pushed away from, but never when the price is within 0.02 of the edges.",
     minPrice: 20_000n,
     maxPrice: 980_000n,
     size: 5,
@@ -45,7 +45,7 @@ const ROSTER: Personality[] = [
   {
     name: "momentum-chase",
     strategy:
-      "Follow the book. If the UP price is above 0.55, buy UP. If it is below 0.45, buy DOWN. Otherwise abstain.",
+      "Follow the trend and always take a side. If the UP price is above 0.55 buy UP; if it is below 0.45 buy DOWN; if it sits between 0.45 and 0.55 buy whichever side shows the heavier bid away from the mid, and never abstain.",
     minPrice: 20_000n,
     maxPrice: 980_000n,
     size: 5,
@@ -55,7 +55,7 @@ const ROSTER: Personality[] = [
   {
     name: "spread-sitter",
     strategy:
-      "Only act when the market is genuinely uncertain. If the UP price is between 0.45 and 0.55, buy UP. Otherwise abstain.",
+      "Only act when the market is genuinely uncertain. If the UP price is between 0.45 and 0.55 buy UP and take the reversion edge; above 0.55 buy DOWN and below 0.45 buy UP, so you are always in the market against the favored side. Never abstain within 0.02 of the mid.",
     minPrice: 400_000n,
     maxPrice: 600_000n,
     size: 3,
@@ -84,7 +84,7 @@ const ROSTER: Personality[] = [
   {
     name: "yolo-momentum",
     strategy:
-      "Always take a side, never abstain. Buy UP if the UP price is above 0.50, otherwise buy DOWN, no matter how extreme the price is.",
+      "Always take a side, never abstain. Buy UP if the UP price is above 0.50, otherwise buy DOWN, no matter how extreme the price is. Never sit out a window.",
     minPrice: 20_000n,
     maxPrice: 980_000n,
     size: 5,

@@ -3,9 +3,11 @@ pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 import {BicameralFactory} from "../src/BicameralFactory.sol";
+import {BicameralTrader} from "../src/BicameralTrader.sol";
 
-/// @notice Deploys the factory (which deploys the one immutable implementation
-///         every agent clones) and opens sponsorship.
+/// @notice Two-step deploy: implementation first, then factory.
+///         Splits the gas across two transactions so neither exceeds
+///         Somnia's block gas limit (~8.5M).
 ///
 ///   forge script script/Deploy.s.sol --sig "run()" --broadcast --rpc-url somnia_testnet
 ///
@@ -26,8 +28,14 @@ contract Deploy is Script {
 
         vm.startBroadcast(pk);
 
-        BicameralFactory factory =
-            new BicameralFactory(platform, collateral, marketsModule, llmAgentId, perAgentReward);
+        // Step 1: deploy the implementation (the code every agent clone runs).
+        BicameralTrader impl = new BicameralTrader();
+        console.log("implementation ", address(impl));
+
+        // Step 2: deploy the factory, pointing at the pre-deployed implementation.
+        BicameralFactory factory = new BicameralFactory(
+            platform, collateral, marketsModule, llmAgentId, perAgentReward, address(impl)
+        );
 
         // Starter grant: a stranger with a wallet and no testnet funds must be
         // able to deploy without visiting a faucet.
@@ -38,9 +46,9 @@ contract Deploy is Script {
         vm.stopBroadcast();
 
         console.log("factory        ", address(factory));
-        console.log("implementation ", factory.implementation());
         console.log("");
         console.log("Add to .env:");
         console.log("FACTORY_ADDRESS=%s", address(factory));
+        console.log("IMPLEMENTATION_ADDRESS=%s", address(impl));
     }
 }
