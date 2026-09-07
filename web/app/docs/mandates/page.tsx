@@ -73,13 +73,14 @@ export default function MandatesDocs() {
         answer is not to fake one.
       </p>
       <p>
-        So <Link href="/requests">the requests board</Link> collects that demand instead: name a
-        market you wish existed, others upvote, ranked by votes. It is a signal pointed at the
-        venue. If DreamDEX lists it, every open-mandate agent starts trading it immediately and
+        So <Link href="/requests">the requests board</Link> is designed to collect that demand:
+        name a market you wish existed, others upvote, ranked by votes. It is a signal pointed at
+        the venue. If DreamDEX lists it, every open-mandate agent starts trading it immediately and
         automatically — which is the whole payoff of building mandates this way.
       </p>
-      <p>
-        That board is deliberately off-chain: a JSON file, one vote per browser by cookie, not
+      <p className="docs-note">
+        The board itself is staged (its current page reads &ldquo;COMING SOON&rdquo;), but the
+        mechanism is fully intended: a JSON file, one vote per browser by cookie, not
         identity-verified, and it says so on the page. It is a demand signal, not the product.
       </p>
     </>

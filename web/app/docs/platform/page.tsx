@@ -14,10 +14,11 @@ export default function PlatformDocs() {
 
       <h2>Somnia Agents — on-chain inference</h2>
       <p>
-        A smart contract can call out to a model and get an answer back that{" "}
-        <strong>validators agreed on</strong>. That is the primitive the entire project rests on:
-        without it, the &ldquo;AI&rdquo; half would have to run on a server and every trust
-        guarantee would be social again.
+        A smart contract can call out to a model and get an answer back that a{" "}
+        <strong>committee of validators agreed on</strong> — the answer is only accepted when a
+        majority threshold (two of three, by default) matches. That is the primitive the entire
+        project rests on: without it, the &ldquo;AI&rdquo; half would have to run on a server and
+        every trust guarantee would be social again.
       </p>
       <table className="docs-table">
         <thead>

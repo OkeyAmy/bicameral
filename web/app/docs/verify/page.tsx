@@ -69,6 +69,22 @@ pnpm verify   # re-derive every published number from a public RPC`}
         pass — so a number in the results file that this script cannot re-derive cannot exist.
       </p>
 
+      <h2>Running the keeper and seeding agents</h2>
+      <p>
+        These are the two live operations that keep the board moving. Both default to{" "}
+        <code>DRY_RUN</code>, so you can watch them talk to the chain and act as if they made
+        decisions before letting them make real ones:
+      </p>
+      <pre className="docs-code">
+{`pnpm seed    # deploy the personality agents (DRY_RUN=true by default)
+pnpm keeper  # poke agents, expire stale requests, redeem settled positions`}
+      </pre>
+      <p>
+        The keeper makes no decisions and holds no authority — it only calls the permissionless
+        functions on agents it doesn&rsquo;t own, so anyone can run one and get identical behavior.
+        Set <code>DRY_RUN=false</code> in <code>.env</code> to let a run post real transactions.
+      </p>
+
       <h2>What gets published</h2>
       <ul>
         <li>decisions attempted and completed end to end</li>

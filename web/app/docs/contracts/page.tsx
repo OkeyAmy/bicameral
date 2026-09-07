@@ -16,7 +16,7 @@ const OURS: [string, string, string][] = [
   ],
   [
     "BicameralTrader (implementation)",
-    IMPLEMENTATION_ADDRESS ?? "0x1fA7f65BBA1aC19B5D5e39A8D4f4C4eD69254472",
+    IMPLEMENTATION_ADDRESS ?? "not linked",
     "The agent. Every deployed agent is a clone of exactly this.",
   ],
 ];
@@ -36,8 +36,9 @@ export default function ContractsDocs() {
     <>
       <h1>Contracts</h1>
       <p className="docs-lede">
-        Four contracts of our own, on Somnia Shannon testnet (chain <code>50312</code>). Everything
-        else is the venue&rsquo;s or the platform&rsquo;s.
+        Two deployed contracts of our own, on Somnia Shannon testnet (chain <code>50312</code>),
+        plus two libraries (<code>RiskGate</code> and <code>AgentToolLib</code>) compiled into
+        the Trader. Everything else is the venue&rsquo;s or the platform&rsquo;s.
       </p>
 
       <h2>What we deployed</h2>
@@ -112,6 +113,15 @@ export default function ContractsDocs() {
       <p>
         It is also the registry the site and keeper read from, and it holds the treasury that
         sponsors a new agent&rsquo;s first decisions.
+      </p>
+      <h3>The legacy factories</h3>
+      <p>
+        The Floor doesn&rsquo;t read only one registry. Later deployments created new factories,
+        and the site&rsquo;s data engine scans a <code>KNOWN_FACTORIES</code> list, so agents from
+        earlier factories (including a few seeded before the current treasury) still appear in the
+        roster. Same immutable implementation, same mechanics — only the registry they were cloned
+        from differs. That&rsquo;s why the status strip&rsquo;s agent count and the roster can both
+        exceed the current factory&rsquo;s own <code>agentCount()</code>.
       </p>
 
       <h2>Registering a market is permissionless — and safe</h2>

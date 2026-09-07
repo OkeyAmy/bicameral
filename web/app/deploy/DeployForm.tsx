@@ -298,7 +298,7 @@ export function DeployForm({
           onClick={deploy}
           style={{ border: "1.5px solid var(--signal)", color: "var(--signal)" }}
         >
-          {status === "working" ? "Deploying…" : "Deploy free, first 20 decisions on us"}
+          {status === "working" ? "Deploying…" : "Deploy free, first decisions on us"}
         </button>
         {note && (
           <p className="sub" style={{ marginTop: 14, color: status === "error" ? "var(--bad)" : "var(--dim)" }}>

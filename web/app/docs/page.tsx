@@ -31,9 +31,10 @@ export default function DocsOverview() {
       <p>
         Move the whole loop on-chain. The strategy is stored in the contract as plain English.
         When a window opens, the contract reads the live order book, asks Somnia&rsquo;s on-chain
-        LLM, and three validators independently run the same model and must agree before the
-        answer is accepted. A deterministic Solidity gate then decides whether that answer is
-        allowed to become an order, and the same transaction places it on DreamDEX.
+        LLM, and a subcommittee of three validators each run the model independently — the answer
+        is accepted once a majority (two of three) agree. A deterministic Solidity gate then
+        decides whether that answer is allowed to become an order, and the same transaction
+        places it on DreamDEX.
       </p>
       <p>
         The name is the architecture: <strong>two chambers</strong>. The model proposes, Solidity
@@ -50,6 +51,10 @@ export default function DocsOverview() {
       <h2>Where to go next</h2>
       <ul>
         <li>
+          <Link href="/docs/reading-the-board">Reading the board</Link> — how the status strip,
+          the ticker, the market table, the decision tape, and the roster are meant to be read.
+        </li>
+        <li>
           <Link href="/docs/how-it-works">How a decision happens</Link> — the loop, event by event,
           with the real transaction from the first live run.
         </li>
@@ -60,6 +65,14 @@ export default function DocsOverview() {
         <li>
           <Link href="/docs/mandates">Mandates</Link> — how an agent trades markets that
           didn&rsquo;t exist when it was deployed.
+        </li>
+        <li>
+          <Link href="/docs/funding">Funding an agent</Link> — the two assets an agent needs and
+          where to get testnet tokens.
+        </li>
+        <li>
+          <Link href="/docs/try-it">Run one yourself</Link> — tokens, deploy, fund, and the full
+          command set.
         </li>
         <li>
           <Link href="/docs/platform">What Somnia provides</Link> — the host primitives this is

@@ -12,6 +12,13 @@ export default function HowItWorks() {
         One loop, five on-chain steps, no off-chain decision anywhere in it. Every step emits an
         event, which is why the whole record can be rebuilt from logs by anyone.
       </p>
+      <div className="docs-note">
+        The board reflects a live deployment on Somnia Shannon testnet. Some agents are on a newer
+        factory and a few duplicates/legacy agents from earlier factories also appear in the
+        roster (<em>&ldquo;agents&rdquo;</em> in the status strip counts non-paused ones). The mechanics
+        below are the same contract in every case — the clone always runs one immutable
+        implementation, so only the prompt and mandate differ.
+      </div>
 
       <h2>1 · Someone pokes the agent</h2>
       <p>
@@ -23,6 +30,12 @@ export default function HowItWorks() {
       <p>
         That is what &ldquo;no server makes a decision&rdquo; means precisely. There <em>is</em> a
         keeper process; it just has nothing to decide.
+      </p>
+      <p className="docs-note">
+        One agent trades a given market at most once per <strong>reevaluation interval</strong> —
+        the time between <code>openWindow</code> calls on the same market. The reference roster
+        runs reevaluation every 15 minutes, and the factory&rsquo;s default is 15 minutes too, so a
+        matched window is checked roughly on that cadence rather than on every block.
       </p>
 
       <h2>2 · The contract reads the live book</h2>
@@ -54,10 +67,11 @@ mid_up=0.888 spread=0.023 seconds_to_expiry=1695
       </p>
       <pre className="docs-code">{`BUY_UP · BUY_DOWN · ABSTAIN`}</pre>
       <p>
-        Three validators each run the model independently. The answer is only accepted if enough of
-        them agree. The result is delivered back to the contract in{" "}
-        <code>handleResponse</code>, which checks that the caller really is the agent platform and
-        that the request is one it actually made.
+        A subcommittee of three validators each run the model independently. The answer is accepted
+        once at least <strong>two of three agree</strong> — a <em>threshold</em>, not unanimity.
+        You can see this on the board: a decision reads <code>2/3</code>, not <code>3/3</code>.
+        The result is delivered back to the contract in <code>handleResponse</code>, which checks
+        that the caller really is the agent platform and that the request is one it actually made.
       </p>
       <p>
         An unreadable answer is <em>published</em>, not discarded — it emits{" "}
@@ -85,7 +99,9 @@ mid_up=0.888 spread=0.023 seconds_to_expiry=1695
 
       <h2>What it looks like on-chain</h2>
       <p>
-        The first live decision, in nine blocks, start to finish. These are the actual events:
+        The first live decision, in nine blocks, start to finish. These are the actual events —
+        note the verdict shows <code>3 of 3</code> because all three validators happened to agree
+        that run; the accept threshold is two.
       </p>
       <table className="docs-table">
         <thead>
