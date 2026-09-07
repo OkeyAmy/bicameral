@@ -27,18 +27,28 @@ const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
 /** Assets are hashed so the mandate filter never carries a venue string on-chain. */
 const assetHash = (asset: string) => keccak256(toHex(asset));
 
+let nextNonce: number | undefined;
 async function send(fn: string, args: unknown[], to: Address): Promise<string | null> {
   if (DRY_RUN || !w) {
     log(`  DRY_RUN would call ${fn}(${args.map(String).join(", ")}) on ${to}`);
     return null;
+  }
+  // The RPC does not reflect a just-broadcast tx until it lands in a block, so
+  // asking it for a fresh nonce before every write returns the same value for
+  // rapid sequential sends and the second tx dies with "nonce too low". Seed
+  // from the chain's pending count once, then increment locally per send.
+  if (nextNonce === undefined) {
+    nextNonce = await pub.getTransactionCount({ address: w.account.address, blockTag: "pending" });
   }
   const hash = await w.writeContract({
     address: to,
     abi: fn.startsWith("register") ? factoryAbi : traderAbi,
     functionName: fn,
     args: args as never,
+    nonce: nextNonce,
     chain: null,
   });
+  nextNonce += 1;
   log(`  sent ${fn} → ${hash}`);
   return hash;
 }

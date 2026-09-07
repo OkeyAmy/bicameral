@@ -16,7 +16,15 @@ const EXPLORER = "https://shannon-explorer.somnia.network";
  * stage — a real trade tape shows one row per trade, and stacking four rows
  * per event was exactly what read as noise instead of a fact.
  */
-export function DecisionTape({ rows, showAgent = true }: { rows: FeedRow[]; showAgent?: boolean }) {
+export function DecisionTape({
+  rows,
+  showAgent = true,
+  showMarket = true,
+}: {
+  rows: FeedRow[];
+  showAgent?: boolean;
+  showMarket?: boolean;
+}) {
   const decisions = groupByDecision(rows);
 
   if (decisions.length === 0) {
@@ -30,6 +38,7 @@ export function DecisionTape({ rows, showAgent = true }: { rows: FeedRow[]; show
           <tr>
             <th className="n">Blk</th>
             {showAgent && <th>Agent</th>}
+            {showMarket && <th>Market</th>}
             <th className="tape-side-col">Side</th>
             <th className="n">Consensus</th>
             <th className="n">Price</th>
@@ -43,6 +52,15 @@ export function DecisionTape({ rows, showAgent = true }: { rows: FeedRow[]; show
             <tr key={d.requestId} className={d.pending ? "tape-pending" : ""}>
               <td className="n dim">{d.block}</td>
               {showAgent && <td className="tape-agent">{d.agentName}</td>}
+              {showMarket && (
+                <td>
+                  {d.marketId && (
+                    <a href={`/windows/${d.marketId}`} className="addr" title={d.marketId}>
+                      {d.marketId.slice(0, 6)}…{d.marketId.slice(-4)}
+                    </a>
+                  )}
+                </td>
+              )}
               <td>
                 <span className={`tape-side ${d.side}`}>{sideGlyph(d.side)}</span>
               </td>
@@ -92,6 +110,7 @@ interface DecisionRow {
   requestId: string;
   block: number;
   agentName: string;
+  marketId: string;
   side: "up" | "down" | "abstain" | "pending";
   agreeing?: number;
   subcommittee?: number;
@@ -116,6 +135,7 @@ function groupByDecision(rows: FeedRow[]): DecisionRow[] {
       requestId: key,
       block: r.block,
       agentName: r.agentName ?? r.agent.slice(0, 8),
+      marketId: r.marketId,
       side: "pending",
       pending: true,
       tx: r.tx,

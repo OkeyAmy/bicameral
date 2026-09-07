@@ -15,7 +15,7 @@
 import type { Address } from "viem";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { pub, COLLATERAL, exchange } from "./config.js";
+import { pub, COLLATERAL, exchange, INDEXER_URL } from "./config.js";
 
 export type MarketStatus = 0 | 1 | 2 | 3 | 4 | 5;
 export const STATUS_LABEL: Record<number, string> = {
@@ -118,6 +118,72 @@ async function marketCreatedEvent() {
 
   _marketCreated = MARKET_CREATED_FALLBACK;
   return _marketCreated;
+}
+
+/**
+ * Indexer GraphQL reads, no key and no SDK class required.
+ *
+ * `SomniaMarketsClient.listLiveBinaryMarkets` (reached via `exchange().client`)
+ * needs `exchange()`, which throws without a `PRIVATE_KEY` — but the read
+ * itself is nothing but a POST to a public Hasura endpoint (confirmed by
+ * reading `IndexerRead.sendGraphql` in the SDK source: plain `fetch`, no
+ * signing, `indexerUrl` is its only required argument). The class requires a
+ * key so its WRITE surface can sign; this read never touches it.
+ *
+ * This does NOT reach into the SDK's `dist/` to call its free function —
+ * that was tried first and failed specifically on this app's Next.js server
+ * (`createRequire(import.meta.url).resolve(...)` threw "Cannot find module"
+ * there despite resolving fine under plain tsx; likely `serverExternalPackages`
+ * handling dynamic runtime resolution differently from the static imports it's
+ * designed for). Same principle as `MARKET_CREATED_FALLBACK` above: hardcode
+ * the small, stable public contract (here, a GraphQL fragment over documented
+ * Hasura columns) rather than depend on a dependency's internal file layout.
+ */
+const BINARY_MARKET_FIELDS = `
+  id marketId marketAddress poolAddress collateral asset intervalSec expiry
+  venueId operatorId cumulativeQuoteVolume tradeCount lastPrice
+`;
+
+async function gqlFetch<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+  const res = await fetch(INDEXER_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) throw new Error(`indexer HTTP ${res.status}`);
+  const json: any = await res.json();
+  if (json.errors?.length) throw new Error(`indexer: ${json.errors[0]?.message ?? "GraphQL error"}`);
+  return json.data as T;
+}
+
+const LIVE_BINARY_MARKETS_QUERY = `
+  query LiveBinaryMarkets($where: Market_bool_exp!, $orderBy: [Market_order_by!], $limit: Int!, $offset: Int!) {
+    Market(where: $where, order_by: $orderBy, limit: $limit, offset: $offset) { ${BINARY_MARKET_FIELDS} }
+  }
+`;
+
+const MARKET_BY_PK_QUERY = `
+  query MarketByPk($id: String!) {
+    Market_by_pk(id: $id) { ${BINARY_MARKET_FIELDS} }
+  }
+`;
+
+function toLiveWindow(m: any, now: number): LiveWindow {
+  return {
+    marketId: m.marketId,
+    pool: m.pool ?? m.poolAddress,
+    asset: String(m.asset),
+    intervalSec: Number(m.intervalSec),
+    expiry: Number(m.expiry),
+    secondsLeft: Number(m.expiry) - now,
+    collateral: m.collateral ?? COLLATERAL,
+    venueId: m.venueId,
+    operatorId: m.operatorId !== undefined ? Number(m.operatorId) : undefined,
+    volume: m.cumulativeQuoteVolume !== undefined ? Number(m.cumulativeQuoteVolume) : undefined,
+    tradeCount: m.tradeCount !== undefined ? Number(m.tradeCount) : undefined,
+    lastPrice: m.lastPrice != null ? Number(m.lastPrice) : undefined,
+    source: "indexer" as const,
+  };
 }
 
 /**
@@ -235,34 +301,50 @@ export async function findMarketCreated(marketId: `0x${string}`): Promise<LiveWi
   return null;
 }
 
-/** Path 1: indexer. Richer rows, server-side ordering, exposes venue. */
+/**
+ * Path 1: indexer. Richer rows, server-side ordering, exposes venue.
+ *
+ * Keyless: a plain GraphQL POST to `INDEXER_URL` (see `gqlFetch` above), not
+ * `exchange().client`, so this runs on a public web server with no
+ * `PRIVATE_KEY` in its environment. Throws (falls through to
+ * `discoverLiveWindows`'s chain-log fallback) only if the indexer itself is
+ * unreachable or its schema no longer matches `BINARY_MARKET_FIELDS`.
+ */
 export async function discoverFromIndexer(
   now = Math.floor(Date.now() / 1000),
 ): Promise<LiveWindow[]> {
-  const ex = exchange();
-  const rows: any[] = await (ex as any).client.listLiveBinaryMarkets({
+  const data = await gqlFetch<{ Market: any[] }>(LIVE_BINARY_MARKETS_QUERY, {
+    where: { marketType: { _eq: "BINARY" }, expiry: { _gt: String(now) } },
+    orderBy: { expiry: "asc" },
     limit: 100,
-    orderBy: "closingSoon",
+    offset: 0,
   });
 
-  return rows
-    .map((m) => ({
-      marketId: m.marketId,
-      pool: m.pool ?? m.poolAddress,
-      asset: String(m.asset),
-      intervalSec: Number(m.intervalSec),
-      expiry: Number(m.expiry),
-      secondsLeft: Number(m.expiry) - now,
-      collateral: m.collateral ?? COLLATERAL,
-      venueId: m.venueId,
-      operatorId: m.operatorId !== undefined ? Number(m.operatorId) : undefined,
-      volume: m.cumulativeQuoteVolume !== undefined ? Number(m.cumulativeQuoteVolume) : undefined,
-      tradeCount: m.tradeCount !== undefined ? Number(m.tradeCount) : undefined,
-      lastPrice: m.lastPrice != null ? Number(m.lastPrice) : undefined,
-      source: "indexer" as const,
-    }))
+  return data.Market.map((m) => toLiveWindow(m, now))
     .filter((m) => m.secondsLeft > 0)
     .sort((a, b) => a.secondsLeft - b.secondsLeft);
+}
+
+/**
+ * One market by id, straight from the indexer, no age limit and no key.
+ *
+ * The `Market` row's primary key IS `marketId` for binary markets (confirmed
+ * against the SDK's own `getMarket`/`toMarket`), so this answers a permalink
+ * lookup for a market of ANY age in one request — unlike `findMarketCreated`,
+ * whose `LOOKBACK_WINDOWS` chain-log scan only reaches ~10 hours back. Returns
+ * `null` on any failure (unreachable indexer, not found) so callers fall back
+ * to the chain-log path rather than throw.
+ */
+export async function findMarketInIndexer(marketId: `0x${string}`): Promise<LiveWindow | null> {
+  try {
+    const data = await gqlFetch<{ Market_by_pk: any | null }>(MARKET_BY_PK_QUERY, {
+      id: marketId.toLowerCase(),
+    });
+    if (!data.Market_by_pk) return null;
+    return toLiveWindow(data.Market_by_pk, Math.floor(Date.now() / 1000));
+  } catch {
+    return null;
+  }
 }
 
 /**

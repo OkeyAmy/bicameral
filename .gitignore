@@ -32,3 +32,6 @@ images/
 
 # TS incremental build cache — a local artifact, never source
 *.tsbuildinfo
+
+# Demo video scripts/notes — production planning, not part of the submission
+demo/

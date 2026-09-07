@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getWindow, getFeed, cadenceLabel } from "../../../lib/floor";
+import { getWindow, getMarketFeed, cadenceLabel } from "../../../lib/floor";
 import { Countdown } from "../../Countdown";
 import { DecisionTape } from "../../components/DecisionTape";
 
@@ -18,10 +18,10 @@ export default async function WindowDetail({
   const w = await getWindow(marketId);
   if (!w) notFound();
 
-  // Only the decisions that touched THIS market.
-  const feed = await getFeed(400)
-    .then((rows) => rows.filter((r) => r.marketId?.toLowerCase() === marketId.toLowerCase()))
-    .catch(() => []);
+  // Every decision that touched THIS market — queried directly by marketId,
+  // not filtered out of the global recent-N feed, which would silently miss
+  // this market's own history once enough other activity pushed it out.
+  const feed = await getMarketFeed(marketId).catch(() => []);
 
   const up = w.bestAsk;
   const down = w.bestBid !== undefined ? 1 - w.bestBid : undefined;
@@ -120,7 +120,7 @@ export default async function WindowDetail({
 
       <section>
         <h2>Decisions</h2>
-        <DecisionTape rows={feed} />
+        <DecisionTape rows={feed} showMarket={false} />
       </section>
 
       <footer>

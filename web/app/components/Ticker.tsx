@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TickerItem } from "../api/ticker/route";
 
 /**
@@ -11,12 +11,30 @@ import type { TickerItem } from "../api/ticker/route";
  * nothing works. It carries real rows (agent verdicts, gate calls, fills) and
  * falls back to live market quotes so it still moves before any agent has acted.
  *
- * The track renders its items TWICE and animates to -50%. At that point the
- * second copy sits exactly where the first started, so the loop is seamless
- * with no jump and no JS driving the animation.
+ * This is driven by requestAnimationFrame rather than a CSS animation, on
+ * purpose:
+ *  - a CSS marquee dies when the track re-renders (every 20s refetch) or when
+ *    `prefers-reduced-motion` strips the animation, and it stops under the
+ *    cursor;
+ *  - a JS loop translates a fixed offset and, the moment the offset exceeds the
+ *    width of one copy, wraps it by exactly that width. The DOM is identical at
+ *    both ends of the wrap (same items, duplicated), so the loop is seamless
+ *    and *cannot* stop at the end — the offset always lands back inside one
+ *    copy. Refetching keeps the current position and just tabs in new items.
  */
 export function Ticker() {
   const [items, setItems] = useState<TickerItem[] | null>(null);
+  const [reduced, setReduced] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef(0);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -40,6 +58,49 @@ export function Ticker() {
     };
   }, []);
 
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track || reduced) return;
+
+    let raf = 0;
+    let prev = 0;
+
+    // Fixed pixel speed: the copy width already grows with the feed, so a
+    // fixed speed reads the same at any length and never "runs to the end".
+    const SPEED = 40; // px per second
+    const measure = () => track.firstElementChild?.clientWidth ?? 0;
+
+    const frame = (t: number) => {
+      const dt = prev ? t - prev : 16;
+      prev = t;
+
+      const w = measure();
+      if (w > 0) {
+        offsetRef.current -= (SPEED * dt) / 1000;
+        // Wrap seamlessly: once we've scrolled past a full copy, add its width
+        // back. The duplicate content makes the jump invisible and the loop
+        // endless — the offset always lands back inside one copy.
+        if (offsetRef.current <= -w) offsetRef.current += w;
+        track.style.transform = `translate3d(${offsetRef.current}px, 0, 0)`;
+      }
+      raf = requestAnimationFrame(frame);
+    };
+
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      track.style.transform = "";
+    };
+  }, [items, reduced]);
+
+  const body = (it: TickerItem) => (
+    <>
+      <span className={`ticker-dot ${it.tone}`} />
+      <span className="ticker-who">{it.who}</span>
+      <span className="ticker-what">{it.what}</span>
+    </>
+  );
+
   if (!items || items.length === 0) {
     return (
       <div className="ticker" aria-hidden="true">
@@ -53,45 +114,37 @@ export function Ticker() {
     );
   }
 
-  // Slower when there is more to read, so scroll speed stays constant.
-  const seconds = Math.max(28, items.length * 5);
-
   return (
     <div className="ticker">
       <div
         className="ticker-track"
-        style={{ animationDuration: `${seconds}s` }}
+        ref={trackRef}
         /* Screen readers get one static copy, not an infinite scroll. */
         aria-label="Recent on-chain activity"
       >
-        {[0, 1].map((copy) => (
-          <div className="ticker-run" key={copy} aria-hidden={copy === 1}>
-            {items.map((it, i) => {
-              const body = (
-                <>
-                  <span className={`ticker-dot ${it.tone}`} />
-                  <span className="ticker-who">{it.who}</span>
-                  <span className="ticker-what">{it.what}</span>
-                </>
-              );
-              return it.href ? (
-                <a
-                  className="ticker-item"
-                  key={`${copy}-${i}`}
-                  href={it.href}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {body}
-                </a>
-              ) : (
-                <span className="ticker-item" key={`${copy}-${i}`}>
-                  {body}
-                </span>
-              );
-            })}
-          </div>
-        ))}
+        {reduced
+          ? [0]
+          : [0, 1].map((copy) => (
+              <div className="ticker-run" key={copy} aria-hidden={copy === 1}>
+                {items.map((it, i) =>
+                  it.href ? (
+                    <a
+                      className="ticker-item"
+                      key={`${copy}-${i}`}
+                      href={it.href}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {body(it)}
+                    </a>
+                  ) : (
+                    <span className="ticker-item" key={`${copy}-${i}`}>
+                      {body(it)}
+                    </span>
+                  ),
+                )}
+              </div>
+            ))}
       </div>
     </div>
   );
