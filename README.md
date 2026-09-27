@@ -184,4 +184,4 @@ Design docs: [`idea.md`](./idea.md) (why) and [`claude.md`](./claude.md) (how).
 
 Built on the official [`ec-dreamdex-hackathon-template`](https://github.com/IronicDeGawd/ec-dreamdex-hackathon-template) and [`dreamdex-bot-kit`](https://github.com/somnia-chain/dreamdex-bot-kit) (both MIT, © DreamDEX S.A.). The dreamDEX Event Contracts interface (`IEventContracts.sol`) is vendored from the hackathon template and extended with the read-only views (`getBookLevels`, `getBinaryPoolParams`, `getOrderBookParameters`, `marketExpiryNs`) the agent uses to build its prompt entirely on-chain.
 
-MIT.
+MIT
