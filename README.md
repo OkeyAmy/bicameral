@@ -2,7 +2,7 @@
 
 **A trading agent with no laptop.** Every decision — reading the dreamDEX order book, asking an on-chain LLM, agreeing on an answer, gating it, and placing the order — happens inside a smart contract, under validator consensus, on Somnia Shannon testnet.
 
-How is that even possible? Because none of the loop lives off-chain. There is simply no Node service to trust.
+How is that even possible? Because none of the loop lives off-chain. There is simply no Node service to trust
 
 ```
                 ┌────────────────────────────────────────────────────────┐
