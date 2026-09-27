@@ -21,7 +21,7 @@ How is that even possible? Because none of the loop lives off-chain. There is si
 
 Every other "AI trading agent" is a Node process on somebody's laptop that posts its conclusions to a chain. You are trusting their server.
 
-This one has no laptop. You write the strategy in English. A keeper calls `openWindow`; the contract reads the dreamDEX book, asks Somnia's on-chain LLM, **three validators run the model independently and a 2-of-3 consensus must be met before the answer is accepted**, then a pure-Solidity `RiskGate` computes the price and size and the same transaction places a `postOnly` order via the low-level `IEventContracts` path — all inside one `BicameralTrader` instance, all on-chain, all verifiable from public logs.
+This one has no laptop. You write the strategy in English. A keeper calls `openWindow`; the contract reads the dreamDEX book, asks Somnia's on-chain LLM, **three validators run the model independently and a 2-of-3 consensus must be met before the answer is accepted**, then a pure-Solidity `RiskGate` computes the price and size and the same transaction places a `postOnly` order via the low-level `IEventContracts` path — all inside one `BicameralTrader` instance, all on-chain, all verifiable from public logs
 
 > **Network:** Somnia Shannon testnet (chain `50312`)
 > **Status:** live. Factory: [`0xF833ac...399c`](https://shannon-explorer.somnia.network/address/0xF833ac09eF6666e3273a22529CC6cBaa78c9399c)
